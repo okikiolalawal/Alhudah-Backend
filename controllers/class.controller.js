@@ -1,211 +1,293 @@
-const classModel = require('../models/class.model')
-const studentModel = require('../models/student.model')
-const subjectModel = require('../models/subject.model')
+const classModel = require("../models/class.model");
+const studentModel = require("../models/student.model");
+const subjectModel = require("../models/subject.model");
 
-const addClass = async(req, res) => {
-    console.log(req.body)
-    const { className,classTeacher, classBooks, classSubjects,classFees } = req.body
-    const classId = Math.floor(Math.random() * 10e5)
-    const classObj = {
-        classId,
+const addClass = async (req, res) => {
+  const { className, classTeacher, classBooks, classSubjects, classFees } =
+    req.body;
+    let finalClass = className.toUpperCase()
+  const classId = Math.floor(Math.random() * 10e5);
+  const classObj = {
+    classId,
+    className:finalClass,
+    classBooks,
+    classSubjects,
+    classTeacher,
+    classFees,
+    isApproved: false,
+  };
+  let form = new classModel(classObj);
+  form
+    .save()
+    .then(() => {
+      res.send({ status: true, message: "Class Added Successfully" });
+    })
+    .catch((error) => {
+      res.send({ status: true, message: "There was an error:" + error });
+    });
+};
+const updateClass = async (req, res) => {
+  try {
+    const {
+      classId,
+      className,
+      classTeacher,
+      classBooks,
+      classSubjects,
+      classFees,
+    } = req.body;
+
+    if (!classId) {
+      return res.status(400).json({ status: false, message: "ClassId is required" });
+    }
+
+    const updatedClass = await classModel.findOneAndUpdate(
+      { classId },
+      {
         className,
+        classTeacher,
         classBooks,
         classSubjects,
-        classTeacher,
-        classFees
-    }
-    let form = new classModel(classObj)
-    form.save()
-    .then(()=>{
-        res.send({status:true, message:'Class Added Successfully'})
-    })
-    .catch((error)=>
-    {
-        res.send({status:true, message:'There was an error:'+error})
-    })
-}
+        classFees,
+      },
+      { new: true } // return the updated document
+    );
 
-const findClassById= async(req,res)=>
-{
-    const {bookId} = req.body
-    const findBook = await feesModel.findOne({bookId})
-    return (findBook)
-}
+    if (!updatedClass) {
+      return res.status(404).json({ status: false, message: "Class not found" });
+    }
+
+    res.json({ status: true, message: "Class updated successfully", updatedClass });
+  } catch (err) {
+    console.error("Update error:", err);
+    res.status(500).json({ status: false, message: "There was an error: " + err.message });
+  }
+};
+
+const findClassById = async (req, res) => {
+  const { bookId } = req.body;
+  const findBook = await feesModel.findOne({ bookId });
+  return findBook;
+};
 
 const getStudentsByClassName = async (req, res) => {
-    try {
-      const { className } = req.params;
-        // console.log(className)
-      const foundClass = await classModel.findOne({ className });
-  
-      if (!foundClass) {
-        return res.send({ status: false, message: 'Class Not Found!!!' });
-      }
-  
-      const studentIds = foundClass.students;
-      const classteacher = foundClass.classTeacher
-      const students = await studentModel.find({ studentId: { $in: studentIds } });
-  
-      res.send({
-        status: true,
-        className: foundClass.className,
-        students,
-        classteacher
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).send({ status: false, message: 'Internal Server Error' });
+  try {
+    const { className } = req.params;
+    // console.log(req.params)
+    const foundClass = await classModel.findOne({ className });
+    // console.log(foundClass)
+    if (!foundClass) {
+      return res.send({ status: false, message: "Class Not Found!!!" });
     }
-  };  
+
+    const studentIds = foundClass.students;
+    const classteacher = foundClass.classTeacher;
+    const students = await studentModel.find({
+      studentId: { $in: studentIds },
+    });
+
+    res.send({
+      status: true,
+      className: foundClass.className,
+      students,
+      classteacher,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ status: false, message: "Internal Server Error" });
+  }
+};
+
 const getStudentsAndSubjectsByClassName = async (req, res) => {
-    try {
-      const { className } = req.params;
-        // console.log(className)
-        const foundClass = await classModel.findOne({ className });
-      if (!foundClass) {
-        return res.send({ status: false, message: 'Class Not Found!!!' });
-      }
-  
-      const studentIds = foundClass.students;
-      const foundSubjects = foundClass.classSubjects
-      const classteacher = foundClass.classTeacher
-      const students = await studentModel.find({ studentId: { $in: studentIds } });
-      const subjects = await subjectModel.find({ subject: { $in: foundSubjects } });
-      res.send({
-        status: true,
-        className: foundClass.className,
-        students,
-        classteacher,
-        subjects
-      });
-    } catch (error) {
-      console.error(error);
-      res.status(500).send({ status: false, message: 'Internal Server Error' });
+  try {
+    const { className } = req.params;
+    const foundClass = await classModel.findOne({ className });
+    if (!foundClass) {
+      return res.send({ status: false, message: "Class Not Found!!!" });
     }
-  };  
 
-const updateClass = async(req,res)=>
-{
-    const {bookId,name, price} =  req.body
+    const studentIds = foundClass.students;
+    const foundSubjects = foundClass.classSubjects;
+    const classteacher = foundClass.classTeacher;
+    const students = await studentModel.find({
+      studentId: { $in: studentIds },
+    });
+    const subjects = await subjectModel.find({
+      subject: { $in: foundSubjects },
+    });
+    res.send({
+      status: true,
+      className: foundClass.className,
+      students,
+      classteacher,
+      subjects,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ status: false, message: "Internal Server Error" });
+  }
+};
 
-    await bookModel.findByIdAndUpdate(bookId, {
-        name,
-        price
-    })
-    .then((book)=>
-    {
-        if(book)
-        {
-            res.send({status:true, message:'Update Succesfully'})
-        }
-        else{
-            res.send({status:false, message:'Can not Update'})
-        }
-    }).catch((error)=>
-    {
-        res.send({status:true, message: error})
-    })
-}
+const deleteClass = async (req, res) => {
+  try {
+    const { classId } = req.params; // coming from URL
+    const deleted = await classModel.findOneAndDelete({ classId });
 
-const deleteClass = async(req, res)=>
-{
-    const{className}= req.body
-    await classModel.findOneAndDelete({className})
-    if(deleteClass)
-    {
-        res.send({status:true, mesage:'Deleted Successfully'})
+    if (deleted) {
+      res.send({ status: true, message: "Deleted Successfully" });
+    } else {
+      res.send({ status: false, message: "Class not found" });
     }
-    else{
-        res.send({status:false, message:' There was an error'})
-    }
-}
+  } catch (error) {
+    console.error(error);
+    res.status(500).send({ status: false, message: "Server Error" });
+  }
+};
 
 const getClasses = async (req, res) => {
-    try {
-      // Fetch all classes
-      const classes = await classModel.find();
-  
-      // If classes exist, fetch students for each class
-      if (classes.length > 0) {
-        const populatedClasses = await Promise.all(
-          classes.map(async (classItem) => {
-            // Fetch the student data for each studentId in the class
-            const students = await studentModel.find({
-              studentId: { $in: classItem.students }, // Match the student IDs
-            });
-  
-            return {
-              className: classItem.className,
-              classTeacher: classItem.classTeacher,
-              classsBooks: classItem.classBooks,
-              classSubjects: classItem.classSubjects,
-              students: students, // Attach the fetched student data
-            };
-          })
-        );
-  
-        res.send({ status: true, classes: populatedClasses });
-      } else {
-        res.send({ status: false, message: "No classes found" });
-      }
-    } catch (error) {
-      console.error("Error fetching classes and students:", error);
-      res.status(500).send({ status: false, message: "Server error" });
+  try {
+    // Fetch all classes
+    const classes = await classModel.find();
+
+    if (classes.length > 0) {
+      const populatedClasses = await Promise.all(
+        classes.map(async (classItem) => {
+          // Fetch full student info for each studentId in the class
+          const students = await studentModel.find({
+            studentId: { $in: classItem.students }
+          });
+
+          return {
+            className: classItem.className,
+            classTeacher: classItem.classTeacher,
+            classBooks: classItem.classBooks,
+            classSubjects: classItem.classSubjects,
+            students: students, // now contains ALL student info
+            isApproved: classItem.isApproved,
+          };
+        })
+      );
+
+      res.send({ status: true, classes: populatedClasses });
+    } else {
+      res.send({ status: false, message: "No classes found" });
     }
+  } catch (error) {
+    console.error("Error fetching classes and students:", error);
+    res.status(500).send({ status: false, message: "Server error" });
+  }
 };
 
 const assignTeacherToClass = async (req, res) => {
-    const { teacherInfo, selectedClass } = req.body;
-    const fullName = teacherInfo.surName + teacherInfo.otherNames
-    console.log(fullName)
-    try {
-        const updatedClass = await classModel.findByIdAndUpdate(
-            selectedClass,
-            { classTeacher: fullName },
-            { new: true } // Returns the updated document
-        );
+  const { teacherInfo, selectedClass } = req.body;
+  const fullName = teacherInfo.surName + teacherInfo.otherNames;
+  try {
+    const updatedClass = await classModel.findByIdAndUpdate(
+      selectedClass,
+      { classTeacher: fullName },
+      { new: true } // Returns the updated document
+    );
 
-        if (updatedClass) {
-            res.send({ status: true, message: 'Teacher Assigned Successfully' });
-        } else {
-            res.send({ status: false, message: 'Class not found' });
-        }
-    } catch (err) {
-        res.send({ status: false, message: 'There was an error: ' + err.message });
+    if (updatedClass) {
+      res.send({ status: true, message: "Teacher Assigned Successfully" });
+    } else {
+      res.send({ status: false, message: "Class not found" });
     }
+  } catch (err) {
+    res.send({ status: false, message: "There was an error: " + err.message });
+  }
 };
 
 const addStudentToClass = async (req, res) => {
-    const { className, studentId } = req.body;
-    console.log(req.body)
-    try {
-        const classDoc = await classModel.findOne({className});
+  const { className, studentId } = req.body;
+  try {
+    const classDoc = await classModel.findOne({ className });
 
-        if (!classDoc) {
-            return res.send({ status: false, message: 'Class not found' });
-        }
-
-        if (!classDoc.students.includes(studentId)) {
-            classDoc.students.push(studentId);
-            await classDoc.save();
-            res.send({ status: true, message: 'Student added to class successfully' });
-        } else {
-            res.send({ status: false, message: 'Student is already in this class' });
-        }
-    } catch (err) {
-        res.send({ status: false, message: 'There was an error: ' + err.message });
+    if (!classDoc) {
+      return res.send({ status: false, message: "Class not found" });
     }
+
+    if (!classDoc.students.includes(studentId)) {
+      classDoc.students.push(studentId);
+      await classDoc.save();
+      res.send({
+        status: true,
+        message: "Student added to class successfully",
+      });
+    } else {
+      res.send({ status: false, message: "Student is already in this class" });
+    }
+  } catch (err) {
+    res.send({ status: false, message: "There was an error: " + err.message });
+  }
+};
+const removeStudentFromClass = async (req, res) => {
+  const { className, studentId } = req.body;
+
+  try {
+    const classDoc = await classModel.findOne({ className });
+
+    if (!classDoc) {
+      return res.send({ status: false, message: "Class not found" });
+    }
+
+    if (classDoc.students.includes(studentId)) {
+      // Remove the student properly
+      classDoc.students.pull(studentId); // <-- mongoose method
+      await classDoc.save();
+
+      res.send({
+        status: true,
+        message: "Student removed from class successfully",
+      });
+    } else {
+      res.send({ status: false, message: "Student not found in this class" });
+    }
+  } catch (err) {
+    res.send({ status: false, message: "There was an error: " + err.message });
+  }
 };
 
-const getAllClasses = async(req, res)=>
+const getAllClasses = async (req, res) => {
+  const classes = await classModel.find();
+  if (classes) {
+    res.send({ status: true, classes });
+  } else {
+    res.send({ status: false, message: "Empty Field" });
+  }
+};
+const classInfo = async (req, res)=>
 {
-    const classes = await classModel.find()
-    if(classes)
-    {
-        res.send({status:true, classes})
-    }
-    else{
-        res.send({status:false, message:'Empty Field'})
-    }
+  const {className} = req.params
+  // console.log(className)
+  let foundClass =  await classModel.findOne({className})
+  // console.log(foundClass)
+  if(!foundClass)
+  {
+    res.send({status:false, message:'Class Not Found!!!'})
+  }
+
+  const studentsIds = foundClass.students || [];
+  const students = await studentModel.find({
+    studentId: {$in: studentsIds},
+  })
+  res.send({
+    status:true,
+    students,
+    foundClass
+  })
 }
-module.exports= {addStudentToClass,getStudentsAndSubjectsByClassName, getAllClasses, getClasses,addClass,findClassById,getStudentsByClassName ,updateClass,deleteClass,assignTeacherToClass}
+module.exports = {
+  addStudentToClass,
+  getStudentsAndSubjectsByClassName,
+  getAllClasses,
+  getClasses,
+  addClass,
+  findClassById,
+  getStudentsByClassName,
+  updateClass,
+  deleteClass,
+  assignTeacherToClass,
+  classInfo,
+  removeStudentFromClass
+};

@@ -7,7 +7,8 @@ let classSchema = mongoose.Schema
     students: [{ type:String}],
     classBooks: [{type: String}],
     classFees: [{type: String}],
-    classSubjects: [{type: String}]
+    classSubjects: [{type: String}],
+    isApproved: {type:Boolean}
 })
 
 let classModel = mongoose.model("class", classSchema);

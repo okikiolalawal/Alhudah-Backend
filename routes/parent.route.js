@@ -1,6 +1,6 @@
 const express = require ("express")
 const router = express.Router()
-const {getParents, parentSignUp, login,updateParent,deleteParent,findParentByEmail,findParentById,findParentBySurName} = require("../controllers/parent.controller")
+const {getParents, parentSignUp, getDashboard, login,updateParent,deleteParent,findParentByEmail,findParentById,findParentBySurName} = require("../controllers/parent.controller")
 
 router.post("/parentSignUp", parentSignUp)
 router.post("/login",login)
@@ -10,5 +10,6 @@ router.post("/findParentById",findParentById)
 router.post("/findParentByEmail",findParentByEmail)
 router.post("/SearchParentBySurName",findParentBySurName)
 router.get("/getParents", getParents)
+router.get('/getDashboard', getDashboard)
 
 module.exports = router

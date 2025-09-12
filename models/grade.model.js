@@ -2,21 +2,26 @@ const mongoose = require('mongoose');
 
 const gradeSchema = new mongoose.Schema({
   studentId: { type: String },
-  className: { type: String},
+  className: { type: String },
   session: { type: String },
 
   firstTermPerSubject: {
-    continuousAssesment: Number,
+    firstCa: Number,
+    secondCa: Number,
     exam: Number,
+    continuousAssesment: Number,
     weightedAverageScore: Number,
     grade: { type: String, enum: ['A','B2','B3','C4','C5','C6','D7','E8','F9'] },
-    subjectId: { type: String},
+    subjectId: { type: String },
     teacherRemarks: { type: String, enum: ['Excellent','Very Good','Good','Fair','Average','Fail'] },
     position: String
   },
+
   secondTerm: {
-    continuousAssesment: Number,
+    firstCa: Number,
+    secondCa: Number,
     exam: Number,
+    continuousAssesment: Number,
     weightedAverageScore: Number,
     grade: { type: String, enum: ['A','B2','B3','C4','C5','C6','D7','E8','F9'] },
     subjectId: { type:String, ref: 'Subject' },
@@ -26,9 +31,12 @@ const gradeSchema = new mongoose.Schema({
     totalMarkObtained: Number,
     percentage: Number
   },
+
   thirdTerm: {
-    continuousAssesment: Number,
+    firstCa : Number,
+    secondCa: Number,
     exam: Number,
+    continuousAssesment: Number,
     weightedAverageScore: Number,
     grade: { type: String, enum: ['A','B2','B3','C4','C5','C6','D7','E8','F9'] },
     subjectId: { type: mongoose.Schema.Types.ObjectId, ref: 'Subject' },
@@ -38,6 +46,8 @@ const gradeSchema = new mongoose.Schema({
     totalMarkObtained: Number,
     percentage: Number
   },
+
+  // term-level totals
   firstTermOverallTotal: Number,
   firstTermTotalMarkObtained: Number,
   firstTermPercentage: Number,

@@ -1,4 +1,5 @@
 const paymentModel = require("../models/payment.model");
+const financeModel = require("../models/finance.model");
 const studentModel = require("../models/student.model");
 const PDFDocument = require("pdfkit");
 const fs = require("fs");
@@ -57,7 +58,6 @@ const verifyPayment = async (req, response) => {
 };
 // Add payment to the database and send a receipt
 const addPayment = async (req, res) => {
-  console.log(req.body);
   const {
     Price,
     email,
@@ -67,14 +67,12 @@ const addPayment = async (req, res) => {
     studentId,
     studentName,
   } = req.body;
-  // console.log(req.body)
+
   if (!payedFor || !parentId || !Price) {
-    return res
-      .status(400)
-      .send({ status: false, message: "Missing required fields" });
-    console.log("there");
+    return res.send({ status: false, message: "Missing required fields" });
   }
-  let bookingRef = get_random_string(6); // Ensure each payment has a unique reference
+
+  let bookingRef = get_random_string(6);
 
   const paymentObj = {
     amountPaid: Price,
@@ -86,31 +84,45 @@ const addPayment = async (req, res) => {
     paymentRef: bookingRef,
     DatePayed: Date.now(),
     isApproved: false,
-    studentId
+    studentId,
   };
-  console.log("payment");
+
   try {
+    // 1. Save payment
     const payment = new paymentModel(paymentObj);
     await payment.save();
-    console.log("here");
+
+    // 2. Update finance balance
+    let financeRecord = await financeModel.findOne(); // assume one record holds the balance
+    if (!financeRecord) {
+      // if no record exists yet, initialize one
+      financeRecord = new financeModel({ currentBalance: 0 });
+    }
+
+    financeRecord.currentBalance =
+      Number(financeRecord.currentBalance) + Number(Price);
+
+    await financeRecord.save();
+
+    // 3. Generate receipt & send email
     const receiptPath = generateReceipt(paymentObj);
     await sendReceiptEmail(paymentObj, receiptPath);
 
     res.send({
       status: true,
-      message: "Payment added and receipt sent",
+      message: "Payment added, balance updated, and receipt sent",
       bookingRef,
+      currentBalance: financeRecord.currentBalance,
     });
   } catch (error) {
     console.error("Error adding payment:", error.message);
-    res
-      .status(500)
-      .send({
-        status: false,
-        message: "Error adding payment: " + error.message,
-      });
+    res.send({
+      status: false,
+      message: "Error adding payment: " + error.message,
+    });
   }
 };
+
 // Generate PDF receipt
 const generateReceipt = (paymentObj) => {
   const doc = new PDFDocument();
@@ -304,9 +316,13 @@ const getPayments = async (req, res) => {
     students.forEach(s =>{
       studentMap[s.studentId] = `${s.surName} ${s.otherNames}`
     })
-  
+    const studentIdMap = {}
+    studentIds.forEach(s =>{
+      studentIdMap[s.studentId] = `${s.studentId}`
+    })
     const formatted = payments.map(p =>({
       fullName: studentMap[p.studentId] || 'Unknown Student',
+      studentIdMap: studentIdMap[p.studentId],
       paymentRef: p.paymentRef,
       amountPaid:p.amountPaid,
       DatePayed:p.DatePayed,

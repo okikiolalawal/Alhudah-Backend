@@ -2,7 +2,7 @@ const mongoose = require ("mongoose")
 let attendanceSchema = mongoose.Schema
 ({
     studentId: { type: String, required: true },
-    date: { type: Date, required: true },
+    date: { type: String, required: true },
     status: { type: String, enum: ["Present", "Absent"], required: true },
     term: { type:String },
     session:{ type: String },

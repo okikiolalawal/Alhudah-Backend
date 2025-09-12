@@ -1,41 +1,44 @@
 const attendanceModel = require("../models/attendance.model");
 const studentModel = require("../models/student.model")
+const sessionModel = require('../models/session.model')
+const termModel = require('../models/term.model')
+
 const markAttendance = async (req, res) => {
   try {
     const attendanceData = req.body;
-    const today = new Date();
-    console.log(today);
-    const date = new Date(
-      today.getFullYear(),
-      today.getMonth(),
-      today.getDate()
-    ); // Time set to 00:00:00
-    console.log(date);
-    const session = "2024/2025";
-    const term = "firstTerm";
+    const activeSession = await sessionModel.findOne({ status: "Active" });
+    const activeTerm = await termModel.findOne({ status: "Active" });
 
-    for (const data of attendanceData) {
-      const { studentId, status, className } = data;
-      const normalizedClassName = className.trim().toLowerCase();
-
-      const markedToday = await attendanceModel.findOne({ studentId, date });
-
-      if (markedToday) {
-        await attendanceModel.updateOne(
-          { studentId, date },
-          { status, session, term, className: normalizedClassName }
-        );
-      } else {
-        await attendanceModel.create({
-          studentId,
-          date,
-          status,
-          className: normalizedClassName,
-          term,
-          session,
-        });
-      }
+    if (!activeSession || !activeTerm) {
+      return res.status(400).json({ error: "No active session or term found" });
     }
+
+    const term = activeTerm.termName;
+    const session = activeSession.sessionName;
+
+    const bulkOps = attendanceData.map((data) => {
+      const { studentId, status, className, date } = data;
+      const normalizedClassName = className.trim().toLowerCase();
+      const normalizedDate = new Date(date).toISOString().split("T")[0]; // yyyy-mm-dd only
+
+      return {
+        updateOne: {
+          filter: {
+            studentId,
+            date: normalizedDate,
+            className: normalizedClassName,
+            session,
+            term,
+          },
+          update: {
+            $set: { status },
+          },
+          upsert: true,
+        },
+      };
+    });
+
+    await attendanceModel.bulkWrite(bulkOps);
 
     return res.status(200).json({ message: "Attendance marked successfully" });
   } catch (error) {
@@ -43,22 +46,20 @@ const markAttendance = async (req, res) => {
     return res.status(500).json({ error: "Something went wrong" });
   }
 };
-
+ 
 const getAttendanceByDateAndClassName = async (req, res) => {
   try {
     const { date, className } = req.params;
-    // console.log(req.params);
-
-    const parsed = new Date(date);
-    const parsedDate = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+    //  console.log(date);
+    //  console.log(className);
     const normalizedClassName = className.trim().toLowerCase();
 
     const attendance = await attendanceModel.find({
       className: normalizedClassName,
-      date: parsedDate,
+      date,
     })
     
-    // console.log(attendance)
+     console.log(attendance)
     const gottenStudents= []
 
     for( attend of attendance )
@@ -90,6 +91,45 @@ const getAttendanceByDateAndClassName = async (req, res) => {
     });
   }
 };
+
+const getAttendanceForToday = async (req, res) => {
+  try {
+    const { date, className } = req.params;
+    const normalizedClassName = className.trim().toLowerCase();
+
+    // 1️⃣ Get attendance records for the given class & date
+    const attendances = await attendanceModel.find({
+      className: normalizedClassName,
+      date,
+    });
+
+    // 2️⃣ For each attendance, fetch the matching student info
+    const results = await Promise.all(
+      attendances.map(async (attend) => {
+        const student = await studentModel.findOne({ studentId: attend.studentId });
+
+        return {
+          studentId: attend.studentId,
+          status: attend.status,
+          surName: student?.surName || "",
+          otherNames: student?.otherNames || "",
+          className: attend.className,
+          date: attend.date
+        };
+      })
+    );
+
+    return res.send({ status: true, attendances: results });
+  } catch (error) {
+    console.error("Error fetching attendance:", error);
+    return res.status(500).send({
+      status: false,
+      message: "Error fetching attendance",
+      error: error.message,
+    });
+  }
+};
+
 const getAttendanceByStudentIdAndTerm = async (req, res) => {
   try {
     const { studentId, term } = req.params;
@@ -143,5 +183,4 @@ const getAttendanceByStudentIdAndTerm = async (req, res) => {
     });
   }
 };
-
-module.exports = { markAttendance, getAttendanceByDateAndClassName,getAttendanceByStudentIdAndTerm };
+module.exports = { markAttendance, getAttendanceByDateAndClassName,getAttendanceByStudentIdAndTerm, getAttendanceForToday };

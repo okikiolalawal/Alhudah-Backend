@@ -1,152 +1,241 @@
-
-const parentModel = require("../models/parent.model")
-const cloudinary = require('cloudinary')
+const parentModel = require("../models/parent.model");
+const cloudinary = require("cloudinary");
 const jwt = require("jsonwebtoken");
 const studentModel = require("../models/student.model");
-cloudinary.config({
-  cloud_name: 'dmyvk5qyq',
-  api_key: '817443962198346',
-  api_secret: 'YqUWDjBlyz2lZ7ckeDDWKiwOx54'
-})
-const parentSignUp = (req, res) => {
-  const parentId = Math.floor(Math.random() * 10e5)
-  // let { fullname, email, phoneNo, dateOfBirth, address, password, occupation } = req.body;
+// cloudinary.config({
+//   cloud_name: 'dmyvk5qyq',
+//   api_key: '817443962198346',
+//   api_secret: 'YqUWDjBlyz2lZ7ckeDDWKiwOx54'
+// })
+const parentSignUp = async (req, res) => {
+  try {
+    const parentId = `P-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    // Expecting frontend to send studentIds as array along with parent data
+    const {
+      surName,
+      otherNames,
+      phoneNo,
+      email,
+      address,
+      password,
+      occupation,
+      studentIds, // 🔑 New field (array)
+    } = req.body;
 
-  const parentObj =
-  {
-    parentId,
-    surName: req.body.surName,
-    otherNames: req.body.otherNames,
-    phoneNo: req.body.phoneNo,
-    email: req.body.email,
-    address: req.body.address,
-    password: req.body.password,
-    occupation: req.body.occupation,
-    isEntranceExamDateSent: false,
-    isAdmissionletterSent: false,
+    const existingParent = await parentModel.findOne({ email });
+    if (existingParent) {
+      return res
+        .send({ status: false, message: "Email already registered" });
+    }
+
+    // Validate required fields
+    if (!surName || !otherNames || !phoneNo || !email || !password) {
+      return res
+        .status(400)
+        .json({ status: false, message: "Missing required fields" });
+    }
+
+    // Build parent object
+    const parentObj = {
+      parentId,
+      surName,
+      otherNames,
+      phoneNo,
+      email,
+      address,
+      password,
+      occupation,
+      studentIds: Array.isArray(studentIds) ? studentIds : [], // Ensure it's always an array
+      isEntranceExamDateSent: false,
+      isAdmissionletterSent: false,
+    };
+
+    const newParent = new parentModel(parentObj);
+    await newParent.save();
+
+    console.log("Parent registered:", parentObj);
+
+    res
+      .status(201)
+      .json({
+        status: true,
+        message: "Registered Successfully",
+        parent: parentObj,
+      });
+  } catch (error) {
+    console.error("Error registering parent:", error);
+    res
+      .status(500)
+      .json({ status: false, message: "There was an error: " + error.message });
   }
-  console.log(parentObj)
-  let form = new parentModel(parentObj)
-  form.save().then(() => {
-    console.log("Registration Successfully")
-    res.send({ status: true, message: "Registered Successfully" })
-  }).catch((error) => {
-    console.log(error)
-    res.send({ status: false, message: "There was an error" + error })
-  })
-  // console.log(userObj)
-}
+};
 
 const login = (req, res) => {
-  let { email, password } = req.body
-  parentModel.findOne({ email })
-    .then((user) => {
-      if (!user) {
-        res.send({ status: false, message: "User Not Found" })
-      }
-      else {
-        let secret = process.env.SECRET;
-        user.validatePassword(req.body.password, (err, same) => {
-          if (err) {
-            res.send({ status: false, message: "Invalid Password" });
-          } else {
-            let token = jwt.sign({ email }, secret, { expiresIn: "1d" });
-            res.send({
-              status: true,
-              message: "Correct Password",
-              parentId: user.parentId,
-              token,
-            });
-            console.log(user.parentId)
-          }
-        });
-      }
-    })
-}
+  let { email, password } = req.body;
+  parentModel.findOne({ email }).then((user) => {
+    if (!user) {
+      res.send({ status: false, message: "User Not Found" });
+    } else {
+      let secret = process.env.SECRET;
+      user.validatePassword(req.body.password, (err, same) => {
+        if (err) {
+          res.send({ status: false, message: "Invalid Password" });
+        } else {
+          let token = jwt.sign({ email }, secret, { expiresIn: "1H" });
+          res.send({
+            status: true,
+            message: "Correct Password",
+            parentId: user.parentId,
+            role: "parent",
+            token,
+          });
+          // console.log(user.parentId)
+        }
+      });
+    }
+  });
+};
 const updateParent = async (req, res) => {
-  // console.log(req.body)
-  const { parentId } = req.body
- await parentModel.findOneAndUpdate({parentId}, {
-    // all the manager info
-    surName: req.body.surName,
-    otherNames: req.body.otherNames,
-    email: req.body.email,
-    phoneNo: req.body.phoneNo,
-    address: req.body.address,
-    occupation:req.body.occupation,
+  try {
+    const { parentId, ...updateData } = req.body; // parentId + other fields
+    console.log("Updating Parent:", parentId, updateData);
 
-  }).then((parent)=>
-  {
-    if(parent)
-    {
-      res.send({status:true, message: 'Updated Successfully!'})
+    if (!parentId) {
+      return res
+        .status(400)
+        .json({ status: false, message: "parentId is required" });
     }
-    else{
-      res.send({status:false, message:'Can not update Parent'})
+
+    // Ensure studentIds is an array if provided
+    if (updateData.studentIds && !Array.isArray(updateData.studentIds)) {
+      return res
+        .status(400)
+        .json({ status: false, message: "studentIds must be an array" });
     }
-  }).catch((error)=>
-    {
-        res.send({status:true, message: error})
-    })
+
+    // Find and update parent
+    const updatedParent = await parentModel.findOneAndUpdate(
+      { parentId }, // filter by parentId
+      { $set: updateData }, // update fields
+      { new: true } // return updated document
+    );
+
+    if (!updatedParent) {
+      return res
+        .status(404)
+        .json({ status: false, message: "Parent not found" });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Parent updated successfully",
+      parent: updatedParent,
+    });
+  } catch (error) {
+    console.error("Error updating parent:", error);
+    res
+      .status(500)
+      .json({ status: false, message: "There was an error: " + error.message });
   }
+};
+
 const deleteParent = async (req, res) => {
-  const { parentId } = req.body
-  const deleteparent = await parentModel.deleteOne({ parentId })
+  const { parentId } = req.body;
+  const deleteparent = await parentModel.deleteOne({ parentId });
   if (deleteparent) {
-    res.send({ status: true, message: 'Parent Deleted Successfully' })
+    res.send({ status: true, message: "Parent Deleted Successfully" });
+  } else {
+    res.send({ status: false, message: "Can not Delete Parent" });
   }
-  else {
-    res.send({ status: false, message: 'Can not Delete Parent' })
-  }
-}
+};
 const findParentByEmail = () => {
-  const { email } = req.body
-  parentModel.find({ email: email }).
-    then((parent) => {
-      if (parent) {
-        res.send({ status: true, parent })
-      }
-      else {
-        res.send({ status: false, message: 'Not found!' })
-      }
-    })
-}
+  const { email } = req.body;
+  parentModel.find({ email: email }).then((parent) => {
+    if (parent) {
+      res.send({ status: true, parent });
+    } else {
+      res.send({ status: false, message: "Not found!" });
+    }
+  });
+};
 const findParentById = (req, res) => {
-  const { id } = req.body
+  const { id } = req.body;
   // console.log(id)
-  parentModel.find({ parentId: id }).
-    then((parent) => {
-      if (parent) {
-        res.send({ status: true, parent })
-      }
-      else {
-        res.send({ status: false, message: 'Not found!' })
-      }
-    })
-}
+  parentModel.find({ parentId: id }).then((parent) => {
+    if (parent) {
+      res.send({ status: true, parent });
+    } else {
+      res.send({ status: false, message: "Not found!" });
+    }
+  });
+};
 const findParentBySurName = () => {
-  const { lastName } = req.body
-  parentModel.find({ surName: lastName }).
-    then((parent) => {
-      if (parent) {
-        res.send({ status: true, parent })
-      }
-      else {
-        res.send({ status: false, message: 'Not found!' })
-      }
-    })
-}
+  const { lastName } = req.body;
+  parentModel.find({ surName: lastName }).then((parent) => {
+    if (parent) {
+      res.send({ status: true, parent });
+    } else {
+      res.send({ status: false, message: "Not found!" });
+    }
+  });
+};
 const getParents = async (req, res) => {
-  const parents = await parentModel.find()
-  if (parents) {
-    res.send({ status: true, parents })
+  try {
+    // Step 1: Fetch all parents
+    const parents = await parentModel.find().lean();
+    console.log(parents);
+    const allStudents = await studentModel.find().lean();
+    console.log(allStudents);
+    if (!parents || parents.length === 0) {
+      return res.send({ status: false, message: "No parents found" });
+    }
+
+    // Step 2: Collect all studentIds from parents
+    const allStudentIds = parents.flatMap((p) => p.studentIds || []);
+    console.log(allStudentIds);
+    // Step 3: Fetch all matching students in one query
+    const students = await studentModel
+      .find({ studentId: { $in: allStudentIds } })
+      .lean();
+    // Step 4: Attach students to each parent
+    const parentsWithStudents = parents.map((parent) => {
+      const parentStudents = students.filter((s) =>
+        parent.studentIds.includes(s.studentId)
+      );
+      return {
+        ...parent,
+        students: parentStudents,
+      };
+    });
+    // console.log(parentsWithStudents)
+    res.status(200).json({ status: true, parents: parentsWithStudents });
+  } catch (error) {
+    console.error("Error fetching parents:", error);
+    res.status(500).json({ status: false, message: "Server error" });
   }
-  else {
-    req.send({ status: false, message: 'This Field Is Empty' })
-  }
-}
-const getStudentsByParentEmail = async (req, re) => {
-  const { emaail } = req.body
-  studentModel.find({ parentId })
-}
-module.exports = { getParents, parentSignUp, login, updateParent, deleteParent, findParentByEmail, findParentById, findParentBySurName }
+};
+const getDashboard = async (req, res) => {
+  // console.log('Headers:', req.headers.authorization)
+  let token = req.headers.authorization.split(" ")[1];
+  let secret = process.env.SECRET;
+  jwt.verify(token, secret, (err, result) => {
+    if (err) {
+      console.log(err);
+      res.send({ status: false, message: "" });
+    } else {
+      // console.log(result)
+      res.send({ status: true, message: "welcome", result });
+    }
+  });
+};
+module.exports = {
+  getParents,
+  parentSignUp,
+  login,
+  updateParent,
+  deleteParent,
+  findParentByEmail,
+  findParentById,
+  findParentBySurName,
+  getDashboard,
+};

@@ -1,37 +1,74 @@
 const studentModel = require("../models/student.model");
 const feesModel = require("../models/fees.model")
 const classModel = require("../models/class.model")
-const addStudent = async (req, res) => {
-  console.log(req.body);
-  const studentId = Math.floor(Math.random() * 10e5);
-  const studentObj = {
-    parentId :  req.body.parentId,
-    studentId,
-    surName: req.body.surName,
-    otherNames: req.body.otherNames,
-    gender: req.body.gender,
-    dateOfBirth: req.body.dateOfBirth,
-    nationality: req.body.nationality,
-    religion: req.body.religion,
-    tribe: req.body.tribe,
-    classTo: req.body.classTo,
-    previousClass: req.body.previousClass,
-    previousSchool: req.body.previousSchool,
-    schoolingType: req.body.schoolingType,
-    dateRegistered: new Date(),// Ensure date is properly formatted
-    isAdmitted:false,
-  };
+const paymentModel = require("../models/payment.model")
+const bookModel = require('../models/book.model')
+const parentModel = require("../models/parent.model")
 
-  console.log(studentObj);
-  const form = new studentModel(studentObj);
-  await form.save().then(() => {
-    res.send({ status: true, message: "Student Has Been Registered Successfully" });
-  })
-    .catch((err) => {
-      console.log(err)
-      res.send({ status: false, message: err })
-    })
-}
+const addStudent = async (req, res) => {
+  try {
+    const {
+      parentId,
+      surName,
+      otherNames,
+      gender,
+      dateOfBirth,
+      nationality,
+      religion,
+      tribe,
+      classTo,
+      previousClass,
+      previousSchool,
+      schoolingType
+    } = req.body;
+
+    // ✅ Check if student with same parentId + surName + otherNames already exists
+    const existingStudent = await studentModel.findOne({
+      parentId,
+      surName,
+      otherNames,
+    });
+
+    if (existingStudent) {
+      return res.send({
+        status: false,
+        message: "This student is already registered under this parent",
+      });
+    }
+
+    const studentId = `STU-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const studentObj = {
+      parentId,
+      studentId,
+      surName,
+      otherNames,
+      gender,
+      dateOfBirth,
+      nationality,
+      religion,
+      tribe,
+      classTo,
+      previousClass,
+      previousSchool,
+      schoolingType,
+      dateRegistered: new Date(),
+      isAdmitted: false,
+    };
+
+    const form = new studentModel(studentObj);
+    await form.save();
+
+    res.send({
+      status: true,
+      message: "Student has been registered successfully",
+      student: form.toObject(),
+    });
+  } catch (err) {
+    console.error(err);
+    res.send({ status: false, message: "There was an error: " + err.message });
+  }
+};
+
 const updateStudent = async (req, res) => {
   try {
     const { studentId, surName } = req.body;
@@ -61,7 +98,7 @@ const updateStudent = async (req, res) => {
     console.log('updated')
   } catch (err) {
     // Send error response
-    res.send({ status: false, message: 'There was an error: ' + err.message });
+    res.send({ status: false, message: 'There was an error: ' + err });
   }
 };
 const deleteStudent = async (req, res) => {
@@ -111,7 +148,7 @@ const getStudents = async (req, res)=>
 }
 const getStudentsByParentId = async (req, res) => {
   const { parentId } = req.params; // Extract from URL
-  console.log('Received Parent ID:', parentId);
+  // console.log('Received Parent ID:', parentId);
 
   try {
     const students = await studentModel.find({ parentId: parentId });
@@ -148,11 +185,11 @@ const checkfees = async (req, res) => {
     // If no students are found, return false
     if (students.length > 0) {
       console.log("Students found:", students);
-      return res.status(200).send({ status: true, students });
+      return res.send({ status: true, students });
     } else {
       // If students are found, return true and send the student data
       console.log("No students found:", students);
-       res.status(200).send({ status: false, students });
+       res.send({ status: false, students });
     }
   } catch (error) {
     console.error("Error checking fees:", error);
@@ -193,7 +230,7 @@ const saveSelectedFees = async (req, res) => {
 const getStudentFeesToPay = async (req, res) => {
   try {
     const { parent_Id } = req.body; // Extract parent_Id from request body
-    console.log(parent_Id);
+    // console.log(parent_Id);
 
     // Query to find students who are admitted and have feesToPay not empty
     const students = await studentModel.find({
@@ -211,15 +248,15 @@ const getStudentFeesToPay = async (req, res) => {
         feesToPay: student.feesToPay
       }));
 
-      res.status(200).json({ status: true, students: result });
+      res.send({ status: true, students: result });
     } else {
       console.log('No students found with fees to pay.');
-      res.status(404).json({ status: false, message: 'No students found with fees to pay.' });
+      res.send({ status: false, message: 'No students found with fees to pay.' });
     }
 
   } catch (error) {
     console.error(`Error fetching students: ${error.message}`);
-    res.status(500).json({ status: false, message: 'There was an error fetching students' });
+    res.send({ status: false, message: 'There was an error fetching students' });
   }
 };
 
@@ -270,33 +307,157 @@ const checkIfNotAdmitted = async (req, res) => {
   const { parent_Id } = req.body;
 
   try {
-    // Find the number of not admitted students
+    // Find all not admitted students
     const notAdmittedStudents = await studentModel.find({
       parentId: parent_Id,
       isAdmitted: false
     });
-    const notAdmittedCount = notAdmittedStudents.length;
 
-    // Find the total number of students
-    const allStudents = await studentModel.find({ parentId: parent_Id });
-    const allStudentsCount = allStudents.length;
-
-    // Check if all students are admitted
-    if (allStudentsCount === notAdmittedCount) {
-      // Retrieve the admission form fee
-      const fee = await feesModel.findOne({ fee: 'Admission Form' });
-      console.log()
-      // Send the fee information
-      return res.send({ status: true, fee });
-    } else {
-      // All students are not admitted
-      return res.send({ status: false, message: 'Not all students are admitted.' });
+    // If no not admitted students
+    if (!notAdmittedStudents.length) {
+      return res.send({ status: false, message: "All students are admitted." });
     }
 
+    // Retrieve the admission form fee once
+    const fee = await feesModel.findOne({ fee: "Admission Form" });
+
+    if (!fee) {
+      return res.send({ status: false, message: "Admission Form fee not set in feesModel." });
+    }
+
+    // Attach admission fee to each not admitted student
+    const studentsWithFees = notAdmittedStudents.map((student) => ({
+      studentId: student._id,
+      surName: student.surName,
+      otherNames: student.otherNames,
+      admissionFee: {
+        fee: fee.fee,
+        price: fee.price,
+      },
+    }));
+
+    return res.send({
+      status: true,
+      students: studentsWithFees,
+    });
   } catch (error) {
-    console.error('Error checking admission status:', error);
-    res.status(500).send({ status: false, message: 'Internal server error.' });
+    console.error("Error checking admission status:", error);
+    res.status(500).send({ status: false, message: "Internal server error." });
   }
 };
 
-module.exports = {checkIfNotAdmitted, getStudentFeesToPay, saveSelectedFees, getApplications, getStudentsByParentId, addStudent, updateStudent, deleteStudent, findStudentById, findStudentBySurName, getStudentfeestoPayClone, checkfees, getStudents}
+const getParentPayments = async (req, res) => {
+  try {
+    const { parent_Id } = req.body;
+    if (!parent_Id) {
+      return res.send({ status: false, message: "parentId is required" });
+    }
+
+    // 1. Get all students for this parent
+    const students = await studentModel.find({ parentId: parent_Id });
+    if (!students.length) {
+      return res.send({ status: false, message: "No students found." });
+    }
+    // console.log(students)
+    // 2. Process each student
+    const result = await Promise.all(
+      students.map(async (student) => {
+        if (!student.isAdmitted) {
+          // 🔹 Case 1: Not admitted → Admission fee only
+          const admissionFee = await feesModel.findOne({ fee: "Admission fee" });
+
+          return {
+            studentId: student.studentId, // ✅ use custom studentId
+            surName: student.surName,
+            otherNames: student.otherNames,
+            type: "notAdmitted",
+            fees: admissionFee
+              ? [{ fee: admissionFee.fee, price: Number(admissionFee.price) }]
+              : [],
+            books: [],
+            totalRequired: admissionFee ? Number(admissionFee.price) : 0,
+            totalPaid: 0,
+            outstanding: admissionFee ? Number(admissionFee.price) : 0,
+          };
+        } else {
+          // 🔹 Case 2: Admitted → find the student's class (class contains array of studentIds)
+          const classData = await classModel.findOne({ students: student.studentId });
+          // console.log(classData)
+          if (!classData) {
+            return {
+              studentId: student.studentId,
+              surName: student.surName,
+              otherNames: student.otherNames,
+              type: "admitted",
+              fees: [],
+              books: [],
+              totalRequired: 0,
+              totalPaid: 0,
+              outstanding: 0,
+            };
+          }
+
+          // 🔹 Fetch fees from feesModel (since classFees only stores fee names)
+          let fees = [];
+          if (classData.classFees.length) {
+            const foundFees = await feesModel.find({
+              fee: { $in: classData.classFees },
+            });
+            fees = foundFees.map((f) => ({
+              fee: f.fee,
+              price: Number(f.price), // ensure number
+            }));
+          }
+
+          // 🔹 Fetch books from bookModel (since classBooks only stores names)
+          let books = [];
+          if (classData.classBooks.length) {
+            const foundBooks = await bookModel.find({
+              name: { $in: classData.classBooks },
+            });
+            books = foundBooks.map((b) => ({
+              name: b.name,
+              price: Number(b.price), // ensure number
+            }));
+          }
+
+          // Calculate totals
+          const totalFees = fees.reduce((sum, f) => sum + f.price, 0);
+          const totalBooks = books.reduce((sum, b) => sum + b.price, 0);
+          const totalRequired = totalFees + totalBooks;
+
+          // Fetch payments using studentId
+          const payments = await paymentModel.find({
+            studentId: student.studentId,
+          });
+          const totalPaid = payments.reduce(
+            (sum, p) => sum + Number(p.amountPaid),
+            0
+          );
+
+          const outstanding = totalRequired - totalPaid;
+
+          return {
+            studentId: student.studentId, // ✅ always custom ID
+            surName: student.surName,
+            otherNames: student.otherNames,
+            type: "admitted",
+            fees,
+            books,
+            totalRequired,
+            totalPaid,
+            outstanding,
+          };
+        }
+      })
+    );
+      // console.log(result)
+    res.send({ status: true, students: result });
+  } catch (error) {
+    console.error("Error fetching parent payments:", error);
+    res.send({ status: false, message: "Server error" });
+  }
+};
+
+
+  module.exports = {checkIfNotAdmitted, getStudentFeesToPay, saveSelectedFees, getApplications, getStudentsByParentId, addStudent, updateStudent, deleteStudent, findStudentById, findStudentBySurName, getStudentfeestoPayClone, checkfees, getStudents,getParentPayments}

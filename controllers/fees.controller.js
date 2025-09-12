@@ -1,7 +1,7 @@
 const feesModel = require('../models/fees.model')
 const studentModel = require('../models/student.model')
 const addFee = (req, res) => {
-    const { fee, name, price } = req.body
+    const { fee, price } = req.body
     const feeId = Math.floor(Math.random() * 10e5)
     const feeObj = {
         feeId,
@@ -24,7 +24,6 @@ const findFeeById = async (req, res) => {
 }
 const updateFee = async (req, res) => {
     const {feeId} = req.body
-    console.log(req.body)
     await feesModel.findOneAndUpdate({feeId},
         {
             fee : req.body.fee,
@@ -45,7 +44,6 @@ const updateFee = async (req, res) => {
 }
 const deletefee = async (req, res) => {
     const { feeId } = req.body
-    console.log(feeId)
    await feesModel.findOneAndDelete({ feeId }).then(() => {
     res.send({ status: true, message: 'Deleted Successfully!!!' })
 });
